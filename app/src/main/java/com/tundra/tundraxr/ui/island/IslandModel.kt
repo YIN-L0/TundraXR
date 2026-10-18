@@ -1,5 +1,6 @@
 package com.tundra.tundraxr.ui.island
 
+import com.tundra.tundraxr.capture.RegionPhase
 import com.tundra.tundraxr.data.ChatMessage
 import com.tundra.tundraxr.data.Device
 import com.tundra.tundraxr.data.ManualTarget
@@ -57,6 +58,8 @@ data class IslandModel(
     val captureCount: Int = 0,
     /** Non-null while recording video. */
     val recordingSec: Int? = null,
+    /** Non-null while framing a region with both hands. */
+    val region: RegionPhase? = null,
     val progress: List<CallProgress> = emptyList(),
     val latest: ChatMessage? = null,
     val guidance: Guidance? = null,
@@ -101,6 +104,10 @@ data class StatusLine(val text: String, val figure: String? = null, val tone: St
 /** What matters most right now, in priority order. */
 fun IslandModel.statusLine(): StatusLine = when {
     recordingSec != null -> StatusLine("Recording", formatClock(recordingSec), StatusTone.Alert)
+    region == RegionPhase.Waiting -> StatusLine("Pinch with both hands to frame")
+    region == RegionPhase.Framing -> StatusLine("Let go to set the frame")
+    region == RegionPhase.Locked -> StatusLine("Capture, or pinch again to redraw")
+    region == RegionPhase.Capturing -> StatusLine("Capturing region…", tone = StatusTone.Agent)
     listeningForAsk -> StatusLine(liveTranscript.ifEmpty { "Listening…" }, tone = StatusTone.Agent)
     listeningForNote -> StatusLine(liveTranscript.ifEmpty { "Voice note…" })
     ai == AiState.Error -> StatusLine(voiceError ?: "Something didn't go through", tone = StatusTone.Alert)
@@ -127,6 +134,8 @@ class IslandActions(
     val photo: () -> Unit = {},
     /** Starts recording, or stops it when one is running. */
     val record: () -> Unit = {},
+    /** Starts two-hand region framing, or cancels it; null where it isn't possible (Home Space). */
+    val region: (() -> Unit)? = null,
     val screenshot: () -> Unit = {},
     val upload: () -> Unit = {},
     val chat: () -> Unit = {},

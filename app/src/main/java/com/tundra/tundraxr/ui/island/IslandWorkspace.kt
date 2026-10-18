@@ -38,6 +38,8 @@ import androidx.xr.scenecore.scene
 import com.tundra.tundraxr.Actions
 import com.tundra.tundraxr.BuildConfig
 import com.tundra.tundraxr.SessionState
+import com.tundra.tundraxr.ui.capture.RegionHooks
+import com.tundra.tundraxr.ui.capture.RegionViewfinder
 import com.tundra.tundraxr.ui.components.DotPattern
 import com.tundra.tundraxr.ui.theme.Tundra
 import com.tundra.tundraxr.ui.theme.XrTokens
@@ -73,12 +75,13 @@ private fun rememberIslandUi() = IslandUi(
 )
 
 /** The island's callbacks, each onto an existing [Actions] entry or a change of UI state. */
-private fun islandActions(ui: IslandUi, actions: Actions, switchSpace: (() -> Unit)?, switchToFull: Boolean) = IslandActions(
+private fun islandActions(ui: IslandUi, actions: Actions, switchSpace: (() -> Unit)?, switchToFull: Boolean, region: (() -> Unit)? = null) = IslandActions(
     expand = { ui.expanded.value = true },
     collapse = { ui.expanded.value = false },
     askVoice = actions.askVoice,
     photo = actions.photo,
     record = actions.record,
+    region = region,
     chat = { ui.toggle(FocusedContent.Chat) },
     voiceNote = actions.note,
     manual = { ui.toggle(FocusedContent.Manual) },
@@ -109,7 +112,7 @@ private fun islandActions(ui: IslandUi, actions: Actions, switchSpace: (() -> Un
  * and the focused panel opening beside it, movable and resizable like the old panels.
  */
 @Composable
-fun SpatialIslandWorkspace(state: SessionState, actions: Actions, onRequestHomeSpace: () -> Unit) {
+fun SpatialIslandWorkspace(state: SessionState, actions: Actions, region: RegionHooks? = null, onRequestHomeSpace: () -> Unit) {
     // Full Space otherwise shows the system's virtual environment; this is AR, so ask for the
     // real room. On leaving, hand passthrough back to the system.
     val session = LocalSession.current
@@ -120,7 +123,11 @@ fun SpatialIslandWorkspace(state: SessionState, actions: Actions, onRequestHomeS
     }
     val ui = rememberIslandUi()
     val model = state.toIslandModel(demo = BuildConfig.TUNDRA_DEMO)
-    val islandActions = islandActions(ui, actions, onRequestHomeSpace, switchToFull = false)
+    val islandActions = islandActions(ui, actions, onRequestHomeSpace, switchToFull = false, region = region?.toggle)
+    // The region frame lives in the room, not in the panel layout below.
+    if (session != null && region != null) {
+        RegionViewfinder(session, region.frame, state.region, onCapture = region.capture, onCancel = region.toggle)
+    }
     Subspace {
         SpatialRow(horizontalArrangement = SpatialArrangement.spacedBy(32.dp)) {
             // The panel wraps the island and follows its size as it opens and closes.
@@ -162,7 +169,7 @@ fun HomeSpaceIslandWorkspace(state: SessionState, actions: Actions, canGoFullSpa
     val focused = ui.focused.value
     val islandActions = if (focused == null) base else IslandActions(
         expand = ui::closeFocused,
-        collapse = base.collapse, askVoice = base.askVoice, photo = base.photo, record = base.record,
+        collapse = base.collapse, askVoice = base.askVoice, photo = base.photo, record = base.record, region = base.region,
         screenshot = base.screenshot, upload = base.upload, chat = base.chat, voiceNote = base.voiceNote,
         manual = base.manual, draft = base.draft, send = base.send, ask = base.ask, source = base.source,
         openGuidance = base.openGuidance, openImage = base.openImage, openChat = base.openChat,

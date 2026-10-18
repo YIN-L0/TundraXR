@@ -49,6 +49,7 @@ fun SessionState.toIslandModel(demo: Boolean = false): IslandModel {
         devices = devices,
         captureCount = captures.size,
         recordingSec = recordingSec.takeIf { isRecording },
+        region = region,
         progress = calls,
         latest = reply,
         // The local brain's answer already quotes the passage, so the card names it and opens it.

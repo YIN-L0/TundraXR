@@ -4,7 +4,12 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.hardware.camera2.CameraCharacteristics
 import android.util.Log
+import androidx.annotation.OptIn
+import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.camera2.interop.ExperimentalCamera2Interop
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -35,6 +40,7 @@ class DeviceCamera(private val context: Context) {
 
     private var provider: ProcessCameraProvider? = null
     private var owner: LifecycleOwner? = null
+    private var camera: Camera? = null
     private var selector = CameraSelector.DEFAULT_BACK_CAMERA
     private val imageCapture = ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build()
     private val videoCapture = VideoCapture.withOutput(
@@ -117,6 +123,35 @@ class DeviceCamera(private val context: Context) {
         return recordingDone?.await().also { recordingDone = null }
     }
 
+    /**
+     * How the world camera maps directions to photo pixels, from Camera2's calibration. Falls
+     * back to focal length over sensor size (centred, uncalibrated) when the device reports no
+     * intrinsics; null when it reports neither, and region crops can't be placed.
+     */
+    @OptIn(ExperimentalCamera2Interop::class)
+    fun intrinsics(): CameraIntrinsics? {
+        val info = camera?.let { Camera2CameraInfo.from(it.cameraInfo) } ?: return null
+        val active = info.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE) ?: return null
+        val rotation = info.getCameraCharacteristic(CameraCharacteristics.SENSOR_ORIENTATION) ?: 0
+        val w = active.width().toFloat()
+        val h = active.height().toFloat()
+        val k = info.getCameraCharacteristic(CameraCharacteristics.LENS_INTRINSIC_CALIBRATION)
+        if (k != null && k[0] > 0f && k[1] > 0f) {
+            // Calibration is relative to the pre-correction array; photos cover the active one.
+            val pre = info.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_PRE_CORRECTION_ACTIVE_ARRAY_SIZE)
+            val dx = pre?.let { active.left - it.left } ?: 0
+            val dy = pre?.let { active.top - it.top } ?: 0
+            return RegionMath.upright(k[0] / w, k[1] / h, (k[2] - dx) / w, (k[3] - dy) / h, active.width(), active.height(), rotation, calibrated = true)
+        }
+        val focal = info.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull()
+        val sensor = info.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
+        if (focal == null || sensor == null || focal <= 0f || sensor.width <= 0f) {
+            Log.w(TAG, "Camera reports no intrinsics or focal length")
+            return null
+        }
+        return RegionMath.upright(focal / sensor.width, focal / sensor.height, 0.5f, 0.5f, active.width(), active.height(), rotation, calibrated = false)
+    }
+
     private suspend fun cameraProvider(): ProcessCameraProvider = suspendCancellableCoroutine { cont ->
         val future = ProcessCameraProvider.getInstance(context)
         future.addListener(
@@ -130,7 +165,7 @@ class DeviceCamera(private val context: Context) {
         val o = owner ?: return false
         return runCatching {
             p.unbindAll()
-            p.bindToLifecycle(o, selector, *useCases)
+            camera = p.bindToLifecycle(o, selector, *useCases)
         }.onFailure { Log.w(TAG, "Bind ${useCases.joinToString { it.javaClass.simpleName }} failed", it) }.isSuccess
     }
 }

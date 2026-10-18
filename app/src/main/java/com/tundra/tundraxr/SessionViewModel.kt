@@ -2,6 +2,7 @@ package com.tundra.tundraxr
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.tundra.tundraxr.capture.RegionPhase
 import com.tundra.tundraxr.data.CaptureItem
 import com.tundra.tundraxr.data.CaptureKind
 import com.tundra.tundraxr.data.ChatMessage
@@ -45,6 +46,8 @@ data class SessionState(
     val showManual: Boolean = false,
     val manualTarget: ManualTarget? = null,
     val photoFlash: Long = 0L,
+    /** Two-hand region capture; null when it's off. */
+    val region: RegionPhase? = null,
 ) {
     val photoCount get() = captures.count { it.kind == CaptureKind.Photo }
     val syncedCount get() = captures.count { it.sync != SyncState.Sending && it.sync != SyncState.Failed }
@@ -106,6 +109,8 @@ class SessionViewModel(
         add(CaptureItem(nextId++, CaptureKind.Video, stamp(), file = file?.path, durationSec = seconds.coerceAtLeast(1)))
     }
 
+    fun onRegionPhase(phase: RegionPhase?) = _state.update { it.copy(region = phase) }
+
     fun onShutter() = _state.update { it.copy(photoFlash = System.currentTimeMillis()) }
 
     fun onPhotoTaken(file: File?) {
@@ -134,7 +139,10 @@ class SessionViewModel(
 
     private var voiceErrorJob: Job? = null
 
-    fun onVoiceError(message: String) {
+    fun onVoiceError(message: String) = showError(message)
+
+    /** A short notice in the island's status line, cleared after a few seconds. */
+    fun showError(message: String) {
         _state.update { it.copy(voiceError = message) }
         voiceErrorJob?.cancel()
         voiceErrorJob = viewModelScope.launch {

@@ -43,7 +43,7 @@ fun IslandActionBar(model: IslandModel, actions: IslandActions, modifier: Modifi
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val labels = maxWidth >= LabelledActionWidth * 6
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            CameraAction(model.recordingSec, actions, labels)
+            CameraAction(model, actions, labels)
             Action(R.drawable.ic_scan, "Screenshot", actions.screenshot, labels, enabled = model.canScreenshot)
             Action(R.drawable.ic_image_up, "Upload", actions.upload, labels, enabled = model.canUpload)
             Action(R.drawable.ic_chat, "Chat", actions.chat, labels, agent = true)
@@ -58,9 +58,15 @@ fun IslandActionBar(model: IslandModel, actions: IslandActions, modifier: Modifi
  * with the running time, so it can always be ended from where it was started.
  */
 @Composable
-private fun CameraAction(recordingSec: Int?, actions: IslandActions, labels: Boolean) {
+private fun CameraAction(model: IslandModel, actions: IslandActions, labels: Boolean) {
+    val recordingSec = model.recordingSec
     if (recordingSec != null) {
         Action(R.drawable.ic_stop, formatClock(recordingSec), actions.record, labels, alert = true, description = "Stop recording")
+        return
+    }
+    // Framing a region holds the slot the same way, so it is ended from where it began.
+    if (model.region != null && actions.region != null) {
+        Action(R.drawable.ic_close, "Cancel", actions.region, labels, active = true, description = "Cancel region capture")
         return
     }
     var choosing by remember { mutableStateOf(false) }
@@ -78,6 +84,13 @@ private fun CameraAction(recordingSec: Int?, actions: IslandActions, labels: Boo
                 leadingIcon = { Icon(painterResource(R.drawable.ic_videocam), null, Modifier.size(22.dp), tint = c.inkMuted) },
                 onClick = { choosing = false; actions.record() },
             )
+            actions.region?.let { region ->
+                DropdownMenuItem(
+                    text = { Text("Frame a region", style = MaterialTheme.typography.bodyLarge, color = c.ink) },
+                    leadingIcon = { Icon(painterResource(R.drawable.ic_scan), null, Modifier.size(22.dp), tint = c.inkMuted) },
+                    onClick = { choosing = false; region() },
+                )
+            }
         }
     }
 }
