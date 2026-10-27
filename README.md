@@ -1,11 +1,17 @@
-# TundraXR
+# TundraXR — Multimodal Assistant
 
-Vision feature for **Samsung Galaxy XR** (Android XR) by [Tundra Health](https://tundrahealth.ai). Clinical engineers document a medical device hands-free — record video, take photos, talk — and every capture goes straight to the Tundra brain. They can ask the brain about the device and pull up the OEM manual scrolled to (and highlighting) the right passage.
+An exploration of AI + interaction + context in XR. The assistant interprets what the user is seeing, selecting, and asking about together — video, image, gesture, and voice as one context — then grounds its answers and actions in relevant documents and captured context, not in a standalone text reply.
 
-```
-app/      Android XR app (Jetpack Compose for XR, CameraX, SpeechRecognizer)
-server/   Local "brain" on the laptop: captures, manual search, TwelveLabs video analysis, whisper.cpp voice fallback, live dashboard
-```
+The focus is interaction. In XR, the most important input is often not what the user typed, but what they are looking at, pointing to, or working on in the moment. An assistant that ignores that context will answer the wrong question, however fluent its reply sounds.
+
+What this system explores:
+
+- How multimodal input — what is seen, selected, and said — can be combined into a single understanding of the user's current situation.
+- How answers can be grounded in a specific document passage or captured evidence, so the user can trace why the assistant said what it said.
+- How an assistant should act in a hands-free, real-world setting, where interrupting, over-explaining, or hallucinating a detail has real costs.
+
+
+Why this is hard: context in XR is continuous, noisy, and partial. The work here is about deciding what matters in the moment, grounding it, and acting on it without demanding more attention than the task deserves.
 
 ## Run the brain (laptop)
 
